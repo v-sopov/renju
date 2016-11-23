@@ -125,9 +125,9 @@ labels_2 = -np.ones((x2_t.shape[0], 1))
 samples = np.vstack((samples_1, samples_2))
 prepared_samples = np.hstack((samples, np.ones((samples.shape[0], 1))))
 labels = np.vstack((labels_1, labels_2))
-parameters = quadratic_loss_optimization(prepared_samples, labels)
-coefs = parameters[:-1, 0]
-shift = parameters[-1, 0]
+analitic_result = quadratic_loss_optimization(prepared_samples, labels)
+coefs = analitic_result[:-1, 0]
+shift = analitic_result[-1, 0]
 print(coefs, shift)
 
 
@@ -337,6 +337,7 @@ def quadratic_loss_gradient(samples, labels, weights):
 
 simple_log = []
 simple_result = gradient_descent(prepared_samples, labels, [5, 5, 5], quadratic_loss_gradient, points_log=simple_log)
+print(simple_result)
 
 
 # In[15]:
@@ -364,7 +365,14 @@ plt.axis('equal')
 plt.show()
 
 
-# Очевидно, что ответ, полученный методом градиентного спуска для квадратичной функции потерь, будет очень близок к аналитическому решению,так как полином второй степени не имеет локальных минимумов, не совпадающих с глобальным, а его градиент не имеет резких перепадов и его норма близка к нулю только в окрестности глобального минимума.
+# Разность векторов решений:
+
+# In[33]:
+
+print(analitic_result -  np.asarray(simple_result)[np.newaxis].transpose())
+
+
+# Ответ, полученный методом ГС, в данном случае очень близок к аналитическому решению
 
 # ### Метод наискорейшего спуска
 # #### Одномерная оптимизация квадратичной функции потерь по направлению:
@@ -801,7 +809,7 @@ for size in sizes:
 
 # #### Теперь сравним обычный SGD, Adagrad и Adam:
 
-# In[31]:
+# In[29]:
 
 plt.hold(True)
 plt.scatter(sizes, simple_size_steps, s=40, c='b', label='SGD')
