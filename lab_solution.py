@@ -11,6 +11,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import math
 import sympy
+import pandas
 from sympy import init_printing
 from IPython.display import display
 from numpy import genfromtxt
@@ -200,7 +201,7 @@ plt.plot(x, y_quad, 'b', label='quadratic', linewidth=2)
 plt.plot(x, y_svm, 'g', label='hinge loss', linewidth=2)
 plt.plot(x, y_logistic, 'r', label='logistic', linewidth=2)
 plt.plot([-2, 0, 0, 3], [1, 1, 0, 0], 'y', label='empirical risk', linewidth=2)
-plt.legend(loc='upper center')
+plt.legend(loc='upper right')
 plt.hold(False)
 plt.axis([-2, 2, -1, 3])
 plt.grid()
@@ -367,7 +368,7 @@ plt.show()
 
 # Разность векторов решений:
 
-# In[33]:
+# In[16]:
 
 print(analitic_result -  np.asarray(simple_result)[np.newaxis].transpose())
 
@@ -377,7 +378,7 @@ print(analitic_result -  np.asarray(simple_result)[np.newaxis].transpose())
 # ### Метод наискорейшего спуска
 # #### Одномерная оптимизация квадратичной функции потерь по направлению:
 
-# In[16]:
+# In[17]:
 
 def quadratic_descent_1d(samples, labels, start, direction, step=0.01):
     a = samples @ direction.transpose()
@@ -388,14 +389,14 @@ def quadratic_descent_1d(samples, labels, start, direction, step=0.01):
 
 # #### Наискорейший спуск:
 
-# In[17]:
+# In[18]:
 
 def quadratic_loss_gradient(samples, labels, weights):
     return 2 / samples.shape[0] * (samples @ weights - labels).transpose() @ samples
 
 def steepest_quadratic_descent(samples, labels, start, step=0.01,
                          threshold=0.00001, points_log = None, steps_max_number=-1):
-    current_location = np.asarray(start, dtype='float64')[np.newaxis].transpose().copy()
+    current_location = np.array(start, dtype='float64', copy=True)[np.newaxis].transpose()
     step_number = 0
     while step_number != steps_max_number:
         if points_log != None:
@@ -417,7 +418,7 @@ steepest_result = steepest_quadratic_descent(prepared_samples, labels, [5, 5, 5]
 
 # ### Сравним теперь скорость сходимости обычного и наискорейшего спуска
 
-# In[18]:
+# In[19]:
 
 def quadratic_loss_function(samples, labels, weights):
     return np.sum((samples @ weights - labels)**2)
@@ -440,25 +441,24 @@ plt.show()
 
 # ### Создание выборки
 
-# In[19]:
+# In[20]:
 
 def get_subsets(sample_set, label_set, subset_size=1):
     perm = np.random.permutation(len(sample_set))
     shuffled_samples = sample_set[perm]
     shuffled_labels = label_set[perm]
-    subsets = []
     int_bound = len(shuffled_samples) // subset_size
     for i in range(int_bound):
-        subsets.append((shuffled_samples[i*subset_size:(i+1)*subset_size],
+        yield ((shuffled_samples[i*subset_size:(i+1)*subset_size],
                         shuffled_labels[i*subset_size:(i+1)*subset_size]))
-    return subsets
 
 
 # ### Получаем данные
 
-# In[20]:
+# In[21]:
 
-data = genfromtxt('train.csv', delimiter=',')[1:]
+data = pandas.read_csv('train.csv', sep=',').as_matrix()
+
 
 data = data[np.logical_or(data[:, 0] == 0, data[:, 0] == 1)]
 samples = data[:8000, 1:]
@@ -474,7 +474,7 @@ test_labels = (test_labels - 0.5) * 2
 
 # ### Проводим спуск
 
-# In[21]:
+# In[22]:
 
 #TODO: optimize it with standart numpy functions
 def logistic_loss(samples, labels, weights):
@@ -503,9 +503,8 @@ for size in sizes:
             loss.append(logistic_loss(prepared_samples, labels, current_weights))
     steps_number = 0
     while True:  
-        subsets = get_subsets(prepared_samples, labels, size)
         old_weights = current_weights.copy()
-        for subset in subsets:
+        for subset in get_subsets(prepared_samples, labels, size):
             current_weights = gradient_descent(subset[0], subset[1], current_weights,
                                                logistic_gradient, step=1e-4, threshold=1e-4, steps_max_number=1)
             if size == 300:
@@ -532,7 +531,7 @@ plt.show()
 
 # #### Ошибка экспоненциального сглаживания функции потерь (для размера батча 300)
 
-# In[22]:
+# In[23]:
 
 plt.figure(figsize=(4, 16))
 plt.hold(False)
@@ -553,7 +552,7 @@ plt.show()
 
 # ### Сохранение импульса
 
-# In[23]:
+# In[24]:
 
 test_function = lambda x,y: 10*x**2 + y**2
 test_gradient = lambda x,y: np.asarray([20*x, 2*y])
@@ -605,7 +604,7 @@ plt.show()
 
 # По графику видно, что оптимальным будет выбор $\gamma \approx 0.75$. Отсюда подсчитаем наивным способом и способом с оптимизацией:
 
-# In[24]:
+# In[25]:
 
 simple_log = []
 test_gradient_descent(test_gradient, [3, 6], step=0.01, points_log=simple_log)
@@ -639,7 +638,7 @@ plt.show()
 
 # #### Ускоренный градиент Нестерова
 
-# In[25]:
+# In[26]:
 
 def nesterov_descent(gradient_function, momentum_coef, start, step=1e-4, threshold=1e-5,
                      points_log = None, steps_max_number=-1):
@@ -689,7 +688,7 @@ plt.ylabel('Function min values')
 plt.show()
 
 
-# In[26]:
+# In[27]:
 
 momentum_log = []
 momentum_descent(rosenbrock_gradient, 0.74, [2, 2], step=2e-4, threshold=1e-5, points_log=momentum_log)
@@ -723,7 +722,7 @@ plt.show()
 
 # ### Adagrad
 
-# In[27]:
+# In[28]:
 
 def adagrad(samples, labels, start, G, gradient_function, step=1e-2, threshold=1e-5,
                      points_log = None, steps_max_number=-1):
@@ -762,7 +761,7 @@ for size in sizes:
 
 # ### Adam
 
-# In[28]:
+# In[29]:
 
 def adam(samples, labels, gradient_function, delta, delta_coef, delta_coef_degree,
          G, G_coef, G_coef_degree, start, step=0.01):
@@ -809,7 +808,7 @@ for size in sizes:
 
 # #### Теперь сравним обычный SGD, Adagrad и Adam:
 
-# In[29]:
+# In[30]:
 
 plt.hold(True)
 plt.scatter(sizes, simple_size_steps, s=40, c='b', label='SGD')
