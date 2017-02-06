@@ -52,7 +52,6 @@ def generate_states():
     prev = 0
     cur = 1
     end = 1
-    rewards = []
     states.append(np.zeros((3, 3), dtype='int8'))
     for number in range(0, 9):
         groups.append(end)
@@ -86,7 +85,7 @@ def generate_states():
 
 
 class TicTacToe:
-    def __init__(self, player_x_class, player_o_class, alpha, eps):
+    def __init__(self, player_x_class, player_o_class, alpha):
         self.states, self.actions, self.state_groups = generate_states()
         x_states = []
         o_states = []
@@ -100,8 +99,8 @@ class TicTacToe:
         for state in o_states:
             o_actions[state] = self.actions.get(state, [])
 
-        self.player_x = player_x_class(x_states, x_actions, 'x', alpha=alpha, eps=eps)
-        self.player_o = player_o_class(o_states, o_actions, 'o', alpha=alpha, eps=eps)
+        self.player_x = player_x_class(x_states, x_actions, 'x', alpha=alpha)
+        self.player_o = player_o_class(o_states, o_actions, 'o', alpha=alpha)
 
     def train(self, games_num, verbose=False):
         players = [self.player_x, self.player_o]
@@ -111,17 +110,19 @@ class TicTacToe:
         for game in range(games_num):
             turn = 0
             state = 0
+            if verbose:
+                print(self.states[state])
             while game_result(self.states[state]) == 2:
+                state = players[turn % 2].choose(state)
                 if verbose:
                     print(self.states[state])
-                state = players[turn % 2].choose(state)
                 if turn >= 1:
                     reward = game_result(self.states[state])
-                    if reward != 2:
+                    if reward == 2:
                         reward = 0
-                    players[(turn+1) % 2].reward(state, reward * (-1)**(turn+1))
+                    players[(turn+1) % 2].reward(state, reward)
                 turn += 1
-            players[(turn+1) % 2].reward(state, reward * (-1)**(turn+1))
+            players[(turn+1) % 2].reward(state, reward)
             reward = game_result(self.states[state])
             if reward == 0:
                 draws += 1
@@ -131,8 +132,6 @@ class TicTacToe:
                 o_wins += 1
 
             if verbose:
-                print(self.states[state])
-                print('=======================================')
                 print('=======================================')
         return (x_wins, o_wins, draws, games_num)
 
@@ -173,9 +172,10 @@ class TicTacToe:
             self.player_o = new_player
 
 
-
+import math
 class SARSA:
-    def __init__(self, states, actions, side, alpha, eps):
+    def __init__(self, states, actions, side, alpha, train=True):
+        self.train = train
         self.states = states
         self.actions = actions
         if side == 'x':
@@ -183,12 +183,14 @@ class SARSA:
         else:
             self.side = -1
         self.alpha = alpha
-        self.eps = eps
         self.action_values = {}
         for key in actions.keys():
-            self.action_values[key] = np.random.randn(len(actions[key]))
+            self.action_values[key] = np.random.normal(0, 0.1, len(actions[key]))
+        self.step = 1
 
     def proba(self, state):
+        # self.eps = 1 / math.sqrt(self.step)
+        self.eps = 0.1
         proba = np.zeros_like(self.action_values[state])
         best_args = self.action_values[state] == self.action_values[state].max()
         proba[best_args] = (1 - self.eps) / np.argwhere(best_args).shape[0]
@@ -202,13 +204,17 @@ class SARSA:
         return self.actions[state][self.last_action]
 
     def reward(self, new_state, reward):
+        if self.train == False:
+            return
+        reward *= self.side
         old_value = self.action_values[self.old_state][self.last_action]
         next_value = 0
         if len(self.actions.get(new_state, [])) > 0:
             new_choice = np.random.choice(len(self.actions[new_state]), p=self.proba(new_state))
             next_value = self.action_values[new_state][new_choice]
-        self.action_values[self.old_state][self.last_action] += \
-                self.alpha * (reward + next_value - old_value)
+        # TODO: check if next line works correctly
+        self.action_values[self.old_state][self.last_action] += self.alpha * (reward + next_value - old_value)
+        self.step += 1
 
 
 class Human:
@@ -220,13 +226,9 @@ class Human:
             self.marker = -1
 
     def choose(self, state):
-        while True:
-            row, col = map(int, input('row column (from 1 to 3): ').split())
-            row -= 1
-            col -= 1
-            if (0 <= row <= 2 and 0 <= col <= 2):
-                break
-            print('Wrong format! Try again')
+        row, col = map(int, input('row column (from 1 to 3): ').split())
+        row -= 1
+        col -= 1
         a = self.states[state].copy()
         a[row, col] = self.marker
         new_state = state + 1
@@ -235,16 +237,16 @@ class Human:
                 break
             new_state += 1
         return new_state
-        # return self.actions[state].index(new_state)
 
     def reward(self, new_state, reward):
         pass
 
-game = TicTacToe(SARSA, SARSA, 0.99, 0.2)
-another_game = TicTacToe(SARSA, SARSA, 0.99, 0.2)
-print("Training...")
-res1 = game.train(500, verbose=False)
-print(res1[0]/res1[3], res1[1]/res1[3])
-game.change_player('o', another_game.player_o)
-res2 = game.train(100, verbose=False)
-print(res2[0]/res2[3], res2[1]/res2[3])
+import pickle
+with open('states.data', 'rb') as f:
+    generate_states_return_value = pickle.load(f)
+
+game = TicTacToe(SARSA, SARSA, 0.05)
+res = game.train(10, verbose=True)
+print(res[0]/res[3], res[1]/res[3], res[2]/res[3])
+game.play(5, computer='x')
+game.play(5, computer='o')
