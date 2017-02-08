@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 import numpy as np
+import matplotlib.pyplot as plt
 
 def is_equal(a, b):
     if np.array_equal(a, b):
@@ -102,27 +103,40 @@ class TicTacToe:
         self.player_x = player_x_class(x_states, x_actions, 'x', alpha=alpha)
         self.player_o = player_o_class(o_states, o_actions, 'o', alpha=alpha)
 
-    def train(self, games_num, verbose=False):
+    def train(self, games_num, epsilon=0.2, with_epsilon=1, verbose=False, counter=0, graph=False):
         players = [self.player_x, self.player_o]
         x_wins = 0
         o_wins = 0
         draws = 0
+        diffs = [[], []]
+        players[0].eps = epsilon
+        players[1].eps = epsilon
         for game in range(games_num):
+            if game > games_num * with_epsilon:
+                players[0].eps = 0
+                players[1].eps = 0
+            if counter > 0:
+                if game % counter == 0:
+                    print('game #', game, sep='')
             turn = 0
             state = 0
             if verbose:
-                print(self.states[state])
+                # print(self.states[state])
+                print(state)
             while game_result(self.states[state]) == 2:
                 state = players[turn % 2].choose(state)
                 if verbose:
-                    print(self.states[state])
+                    # print(self.states[state])
+                    print(state)
                 if turn >= 1:
                     reward = game_result(self.states[state])
                     if reward == 2:
                         reward = 0
-                    players[(turn+1) % 2].reward(state, reward)
+                    diff = players[(turn+1) % 2].reward(state, reward)
+                    diffs[(turn + 1) % 2].append(diff)
                 turn += 1
-            players[(turn+1) % 2].reward(state, reward)
+            diff = players[(turn+1) % 2].reward(state, reward)
+            diffs[(turn+1) % 2].append(diff)
             reward = game_result(self.states[state])
             if reward == 0:
                 draws += 1
@@ -133,6 +147,12 @@ class TicTacToe:
 
             if verbose:
                 print('=======================================')
+        if graph:
+            plt.subplot(211)
+            plt.plot(range(len(diffs[0])), diffs[0], 'r')
+            plt.subplot(212)
+            plt.plot(range(len(diffs[1])), diffs[1], 'b')
+            plt.show()
         return (x_wins, o_wins, draws, games_num)
 
     def play(self, games_num, computer):
@@ -148,13 +168,7 @@ class TicTacToe:
             while game_result(self.states[state]) == 2:
                 print(self.states[state])
                 state = players[turn % 2].choose(state)
-                # if turn >= 1:
-                #     reward = game_result(self.states[state])
-                #     if reward != 2:
-                #         reward = 0
-                #     players[(turn+1) % 2].reward(state, reward)
                 turn += 1
-            # players[(turn+1) % 2].reward(state, reward)
             print(self.states[state])
             if game_result(self.states[state]) == 1:
                 print("Winner: X")
@@ -172,12 +186,12 @@ class TicTacToe:
             self.player_o = new_player
 
 
-import math
 class SARSA:
-    def __init__(self, states, actions, side, alpha, train=True):
-        self.train = train
+    def __init__(self, states, actions, side, alpha, trainable=True):
+        self.trainable = trainable
         self.states = states
         self.actions = actions
+        self.eps = 0
         if side == 'x':
             self.side = 1
         else:
@@ -185,12 +199,12 @@ class SARSA:
         self.alpha = alpha
         self.action_values = {}
         for key in actions.keys():
-            self.action_values[key] = np.random.normal(0, 0.1, len(actions[key]))
+            self.action_values[key] = np.zeros(len(actions[key]))
         self.step = 1
 
     def proba(self, state):
-        # self.eps = 1 / math.sqrt(self.step)
-        self.eps = 0.1
+        if self.eps >= 0.0001:
+            self.eps = 1 / self.step ** 0.33
         proba = np.zeros_like(self.action_values[state])
         best_args = self.action_values[state] == self.action_values[state].max()
         proba[best_args] = (1 - self.eps) / np.argwhere(best_args).shape[0]
@@ -204,7 +218,7 @@ class SARSA:
         return self.actions[state][self.last_action]
 
     def reward(self, new_state, reward):
-        if self.train == False:
+        if self.trainable == False:
             return
         reward *= self.side
         old_value = self.action_values[self.old_state][self.last_action]
@@ -212,9 +226,55 @@ class SARSA:
         if len(self.actions.get(new_state, [])) > 0:
             new_choice = np.random.choice(len(self.actions[new_state]), p=self.proba(new_state))
             next_value = self.action_values[new_state][new_choice]
-        # TODO: check if next line works correctly
-        self.action_values[self.old_state][self.last_action] += self.alpha * (reward + next_value - old_value)
+        diff = self.alpha * (reward + next_value - old_value)
+        self.action_values[self.old_state][self.last_action] += diff
         self.step += 1
+        return abs(diff)
+
+
+class QLearning:
+    def __init__(self, states, actions, side, alpha, trainable=True):
+        self.trainable = trainable
+        self.states = states
+        self.actions = actions
+        self.eps = 0
+        if side == 'x':
+            self.side = 1
+        else:
+            self.side = -1
+        self.alpha = alpha
+        self.action_values = {}
+        for key in actions.keys():
+            self.action_values[key] = np.zeros(len(actions[key]))
+        self.step = 1
+
+    def proba(self, state):
+        if self.eps >= 0.0001:
+            self.eps = 1 / self.step ** 0.33
+        proba = np.zeros_like(self.action_values[state])
+        best_args = self.action_values[state] == self.action_values[state].max()
+        proba[best_args] = (1 - self.eps) / np.argwhere(best_args).shape[0]
+        proba += self.eps / proba.shape[0]
+        return proba
+
+
+    def choose(self, state):
+        self.old_state = state
+        self.last_action =  np.random.choice(len(self.actions[state]), p=self.proba(state))
+        return self.actions[state][self.last_action]
+
+    def reward(self, new_state, reward):
+        if self.trainable == False:
+            return
+        reward *= self.side
+        old_value = self.action_values[self.old_state][self.last_action]
+        next_value = 0
+        if len(self.actions.get(new_state, [])) > 0:
+            next_value = self.action_values[new_state].max()
+        diff = self.alpha * (reward + next_value - old_value)
+        self.action_values[self.old_state][self.last_action] += diff
+        self.step += 1
+        return abs(diff)
 
 
 class Human:
@@ -245,8 +305,15 @@ import pickle
 with open('states.data', 'rb') as f:
     generate_states_return_value = pickle.load(f)
 
-game = TicTacToe(SARSA, SARSA, 0.05)
-res = game.train(10, verbose=True)
-print(res[0]/res[3], res[1]/res[3], res[2]/res[3])
-game.play(5, computer='x')
-game.play(5, computer='o')
+game = TicTacToe(SARSA, SARSA, 0.2)
+res = game.train(10000, epsilon=0.2, with_epsilon=0.95, verbose=False, counter=1000, graph=False)
+res = game.train(1000, epsilon=0, with_epsilon=1, verbose=False, counter=0, graph=False)
+print(res[2]/res[3])
+print('=====')
+game = TicTacToe(QLearning, QLearning, 0.1)
+res = game.train(10000, epsilon=0.2, with_epsilon=0.95, verbose=False, counter=1000, graph=False)
+res = game.train(1000, epsilon=0, with_epsilon=1, verbose=False, counter=0, graph=False)
+print(res[2]/res[3])
+
+# game.play(4, computer='x')
+# game.play(4, computer='o')
