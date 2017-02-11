@@ -280,7 +280,27 @@ class MarkovPlayer:
 
 # In[134]:
 
-get_ipython().run_cell_magic('time', '', "# == IMPORTANT PARAMETER ==\ngames_num = 3000\n# =========================\nsteps = 120\ndiscount = 0.95\nstates = 50\nactions = 2\nrandom_player = MarkovPlayer(states=states, actions=actions, steps=steps,\n                           strategy_class=RandomStrategy, discount=discount)\npolicy_iteration_player = MarkovPlayer(states=states, actions=actions, steps=steps,\n                           strategy_class=PolicyIterationStrategy, discount=discount)\nvalue_iteration_player = MarkovPlayer(states=states, actions=actions, steps=steps,\n                           strategy_class=ValueIterationStrategy, discount=discount)\nplt.hold(True)\nrandom_player.evaluate(games=games_num, hold=True, color='k')\nprint('===')\npolicy_iteration_player.evaluate(games=games_num, hold=True, color='r')\nprint('===')\nvalue_iteration_player.evaluate(games=games_num, hold=True, color='b')\nplt.hold(False)\nplt.show()")
+# == IMPORTANT PARAMETER ==
+games_num = 3000
+# =========================
+steps = 120
+discount = 0.95
+states = 50
+actions = 2
+random_player = MarkovPlayer(states=states, actions=actions, steps=steps,
+                           strategy_class=RandomStrategy, discount=discount)
+policy_iteration_player = MarkovPlayer(states=states, actions=actions, steps=steps,
+                           strategy_class=PolicyIterationStrategy, discount=discount)
+value_iteration_player = MarkovPlayer(states=states, actions=actions, steps=steps,
+                           strategy_class=ValueIterationStrategy, discount=discount)
+plt.hold(True)
+random_player.evaluate(games=games_num, hold=True, color='k')
+print('===')
+policy_iteration_player.evaluate(games=games_num, hold=True, color='r')
+print('===')
+value_iteration_player.evaluate(games=games_num, hold=True, color='b')
+plt.hold(False)
+plt.show()
 
 
 # Как можно заметить, оба алгоритма показывают схожие результаты (что логично, так как они должны находить одну оптимальную стратегию), однако **value iteration strategy** сходится всё же гораздо быстрее.
