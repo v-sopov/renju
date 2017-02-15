@@ -9,6 +9,9 @@
 # Пусть $Q_t(a) = \frac{\sum_k r_{k}}{c_t(a)}$. При выборе на $t+1$-ом шаге действия $a:\; Q_{t+1}(a) =  \frac{\sum_k r_{k} \; + \; r_{t+1}}{c_t(a) + 1} = \frac{Q_{t}(a) \cdot c_t(a) \; + \; r_{t+1}}{c_t(a) + 1}$
 
 # ### Построим для начала нашу модель:
+# #### Miscellaneous: некоторые глобальные импорты и вспомогательные функции
+# ### Уточнение про warning'и:
+# Далее в коде matplotlib будет выкидывать предупреждения про функцию hold(). Смысл в том, что начиная с версии 2.0, matplotlib реализует plt.hold(True) по умолчанию, а на ручной вызов этой функции выдаёт warning. Поэтому ситуация такая: при полагании на поведение версии 1.x на старых версиях всё OK, на >=2.0 выдаётся warning, но графики чертятся правильно. При полагании на поведение >=2.0 на новых версиях всё OK, на старых всё ломается. Так как matplotlib 2.0 стоит пока что не у всех (например, я обновил версию буквально пару недель назад), в дальнейшем я буду полагаться на старое поведение, поэтому в коде будут warning'и
 
 # In[1]:
 
@@ -17,7 +20,7 @@ import matplotlib.pyplot as plt
 import math
 from scipy.ndimage.filters import gaussian_filter1d
 
-
+# Код для отображения прогресс-бара, спасибо https://github.com/alexanderkuk
 def log_progress(sequence, every=None, size=None):
     from ipywidgets import IntProgress, HTML, VBox
     from IPython.display import display
@@ -68,6 +71,9 @@ def log_progress(sequence, every=None, size=None):
         label.value = str(index or '?')
 
 
+# #### Класс, представляющий среду
+# Имеет один метод, отдающий награду за действие
+
 # In[2]:
 
 class MAB_Model:
@@ -76,13 +82,18 @@ class MAB_Model:
         self.reward_means = np.random.normal(size=actions)
     def get_reward(self, action):
         return np.random.normal(self.reward_means[action])
-    
+
+
+# #### Базовый класс, определяющий основные методы стратегии
+
+# In[3]:
+
 class MAB_Strategy:
     def __init__(self, model):
         self.model = model
         self.reward_means = np.zeros((model.actions))
         self.action_uses = np.zeros((model.actions))
-    def make_step(self): # Maybe should return reward
+    def make_step(self): # Returns reward
         pass
     def update_reward(self, action, reward):
         self.reward_means[action] = (self.reward_means[action] * self.action_uses[action] + reward)        / (self.action_uses[action] + 1)
@@ -90,48 +101,72 @@ class MAB_Strategy:
     def best_actions(self):
         best =  np.argwhere(self.reward_means == np.max(self.reward_means))
         return best.reshape(best.shape[0])
-    
+
+
+# #### Класс для запуска и тестирования эффективности стратегий
+
+# In[4]:
+
 class Player:
     def __init__(self, actions, steps, strategy_class, **kwargs):
         self.actions = actions
         self.strategy_class = strategy_class
         self.steps = steps
         self.strategy_args = kwargs
+    def play(self):
+        model = MAB_Model(self.actions)
+        strategy = self.strategy_class(model, **(self.strategy_args))
+        rewards = np.zeros(self.steps)
+        optimum = np.zeros(self.steps)
+        rewards[0] = strategy.make_step()
+        optimum[0] = model.reward_means.max()
+        for i in range(1, self.steps):
+            rewards[i] = strategy.make_step()
+            rewards[i] += rewards[i-1]
+            optimum[i] = model.reward_means.max()
+            optimum[i] += optimum[i-1]
+        return rewards, optimum
+    def visualize(self, rewards, optimum, hold, show, show_opt, smoothen, color, label_loc):
+        if not hold:
+            plt.figure(figsize=(8, 7))
+        x = np.arange(1, self.steps+1)
+        if show_opt:
+            plt.plot(x, optimum, 'k', label='optimum')
+        plot_rewards = rewards
+        if (smoothen):
+            plot_rewards = rewards.copy()
+            plot_rewards = gaussian_filter1d(plot_rewards, 10.0)
+        plt.plot(x, plot_rewards, color, label=self.strategy_class.__name__)
+        plt.title('Total reward', fontsize=16)
+        if not hold:
+            plt.legend(loc=label_loc, fontsize=14)
+            plt.xlabel('steps')
+            plt.ylabel('total reward')
+            plt.grid(True)
+            plt.show()
+        
     def evaluate(self, games=1000, progressbar=True,hold=False, show=True,
-                 show_opt=True, smoothen=False, color='b', label=' '):
+                 show_opt=True, smoothen=False, color='b', label_loc='upper left'):
         rewards = np.zeros(self.steps)
         optimum = np.zeros(self.steps)
         if progressbar:
             games_range = log_progress(range(games), every=10)
         else:
             games_range = range(games)
+        rewards = np.zeros(self.steps)
+        optimum = np.zeros(self.steps)
         for game in games_range:
-            model = MAB_Model(self.actions)
-            strategy = self.strategy_class(model, **(self.strategy_args))
-            for i in range(self.steps):
-                rewards[i] += strategy.make_step() / games
-                optimum[i] += model.reward_means.max() / games
-        for i in range(1, self.steps):
-            rewards[i] += rewards[i-1]
-            optimum[i] += optimum[i-1]
+            res = self.play()
+            rewards += res[0] / games
+            optimum += res[1] / games
         if show:
-            x = np.arange(1, self.steps+1)
-            if show_opt:
-                plt.plot(x, optimum, 'k', label='optimum')
-            plot_rewards = rewards
-            if (smoothen):
-                plot_rewards = rewards.copy()
-                plot_rewards = gaussian_filter1d(plot_rewards, 10.0)
-            plt.plot(x, plot_rewards, color, label=label)
-            plt.title('Total reward', fontsize=16)
-            if not hold:
-                plt.show()
-        return round(rewards.sum() * 100  / optimum.sum())
+            self.visualize(rewards, optimum, hold, show, show_opt, smoothen, color, label_loc)
+        return rewards.sum()  / optimum.sum()
 
 
 # ### Реализуем жадную стратегию
 
-# In[3]:
+# In[5]:
 
 class Greedy(MAB_Strategy):
     def __init__(self, model):
@@ -144,11 +179,11 @@ class Greedy(MAB_Strategy):
         return reward
 
 
-# In[4]:
+# In[6]:
 
 player = Player(20, 1000, Greedy)
 result = player.evaluate(games=1000)
-print('Total reward:', str(result) + "%")
+print('Total reward:', str(round(result*100)) + "% of best possible result")
 
 
 # Её основной недостаток достаточно очевиден: сначала действия выбираются абсолютно случайно, и если на первом шаге алгоритм выберет "плохой" автомат, но на котором случайно выпал хороший выигрыш, он так и продолжит на нём играть, и переключится на другие автоматы только тогда, когда средний выигрыш на автомате станет неположительным. Кроме того, если выигрыш будет положителен, но мал, алгоритм так и продолжит использовать этот автомат, даже если есть более выгодные автоматы.
@@ -159,63 +194,40 @@ print('Total reward:', str(result) + "%")
 # 
 # Для наглядности запустим аналогичную симуляцию, но в которой для каждого запуска алгоритм предварительно дважды дёргал за ручку каждого автомата:
 
-# In[5]:
+# In[7]:
 
-class InitializingPlayer:
-    def __init__(self, actions, steps, strategy_class, **kwargs):
-        self.actions = actions
-        self.strategy_class = strategy_class
-        self.steps = steps
-        self.strategy_args = kwargs
-    def evaluate(self, games=1000, progressbar=True,hold=False, show=True,
-                 show_opt=True, smoothen=False, color='b', label=' '):
+class InitializingPlayer(Player):
+    def play(self):
+        model = MAB_Model(self.actions)
+        strategy = self.strategy_class(model, **(self.strategy_args))
         rewards = np.zeros(self.steps)
         optimum = np.zeros(self.steps)
-        if progressbar:
-            games_range = log_progress(range(games), every=10)
-        else:
-            games_range = range(games)
-        for game in games_range:
-            model = MAB_Model(self.actions)
-            strategy = self.strategy_class(model, **(self.strategy_args))
-            for action in range(model.actions):
-                reward = strategy.model.get_reward(action)
-                strategy.update_reward(action, reward)
-                rewards[action] += reward / games
-                optimum[action] += model.reward_means.max() / games
-            for action in range(model.actions):
-                reward = strategy.model.get_reward(action)
-                strategy.update_reward(action, reward)
-                rewards[model.actions + action] += reward / games
-                optimum[action + model.actions] += model.reward_means.max() / games
-            for i in range(self.steps - 2*model.actions):
-                rewards[i + 2*model.actions] += strategy.make_step() / games
-                optimum[i + 2*model.actions] += model.reward_means.max() / games
-        for i in range(1, self.steps):
+        for action in range(1, self.actions):
+            reward = strategy.model.get_reward(action)
+            strategy.update_reward(action, reward)
+            rewards[action] += reward
+            optimum[action] += model.reward_means.max()
+            if action != 0:
+                rewards[action] += rewards[action-1]
+                optimum[action] += optimum[action-1]
+        for i in range(self.actions, self.steps):
+            rewards[i] = strategy.make_step()
             rewards[i] += rewards[i-1]
+            optimum[i] = model.reward_means.max()
             optimum[i] += optimum[i-1]
-        if show:
-            x = np.arange(1, self.steps+1)
-            if show_opt:
-                plt.plot(x, optimum, 'k', label='optimum')
-            plot_rewards = rewards
-            if (smoothen):
-                plot_rewards = rewards.copy()
-                plot_rewards = gaussian_filter1d(plot_rewards, 10.0)
-            plt.plot(x, plot_rewards, color, label=label)
-            plt.title('Average reward', fontsize=16)
-            if not hold:
-                plt.show()
-        return round(rewards.sum() * 100  / optimum.sum())
+        return rewards, optimum
+
+
+# In[8]:
 
 player = InitializingPlayer(20, 1000, Greedy)
 result = player.evaluate(games=1000)
-print('Total reward:', str(result) + "%")
+print('Total reward:', str(round(result*100)) + "% of best possible result")
 
 
 # Однако можно заметить, что очень похожего результата можно добиться, если инициализировать вектор средних наград не нулями, а достаточно большими числами (в данном случае - 20), которые с достаточно большой вероятностью будут больше выпадающей награды. Таким образом, с вероятностью, близкой к 1, при первом выборе автомата его средняя награда станет меньше 20. Таким образом, в начале запуска стратегия переберёт все автоматы по одному разу и лишь затем начнёт играть жадно:
 
-# In[6]:
+# In[9]:
 
 class Greedy10(MAB_Strategy):
     def __init__(self, model):
@@ -227,14 +239,18 @@ class Greedy10(MAB_Strategy):
         reward = self.model.get_reward(action)
         self.update_reward(action, reward)
         return reward
+
+
+# In[10]:
+
 player = Player(20, 1000, Greedy10)
 result = player.evaluate(games=1000)
-print('Total reward:', result)
+print('Total reward:', str(round(result*100)) + "% of best possible result")
 
 
 # ### $\varepsilon$ -greedy стратегия
 
-# In[7]:
+# In[11]:
 
 class E_Greedy(MAB_Strategy):
     def __init__(self, model, eps):
@@ -254,7 +270,7 @@ class E_Greedy(MAB_Strategy):
 
 # ### Softmax
 
-# In[8]:
+# In[12]:
 
 class Softmax(MAB_Strategy):
     def __init__(self, model, eps):
@@ -276,7 +292,7 @@ class Softmax(MAB_Strategy):
 
 # ### Upper Confidence Bound
 
-# In[9]:
+# In[13]:
 
 class UCB(MAB_Strategy):
     def __init__(self, model, eps):
@@ -297,35 +313,35 @@ class UCB(MAB_Strategy):
 
 # Тут с $\varepsilon$ тоже всё очевидно: при $\varepsilon \rightarrow \infty$ важность того, с какой частотой мы использовали автомат, увеличивается и вскоре начинает перевешивать важность известной средней награды, в результате стратегия опять превращается в случайную, причём не в абсолютно случайную, а с повышенной вероятностью выбора малопосещаемых автоматов
 
-# In[10]:
+# In[14]:
 
 
 # ATTENTION: takes a significant amount of time to be processed
 games_num = 1000
 
 player = Player(20, 1000, Greedy)
-result = player.evaluate(games=games_num, show=False)
+result = player.evaluate(games=games_num, show=False) * 100
 greedy_sum = result
 
 egreedy_epsilons = [0.01, 0.05, 0.075, 0.1, 0.15, 0.2, 0.3, 0.4]
 egreedy_results = []
 for e in log_progress(egreedy_epsilons, every=1):
     player = Player(20, 1000, E_Greedy, eps=e)
-    res = player.evaluate(games=games_num, show=False, progressbar=False)
+    res = player.evaluate(games=games_num, show=False, progressbar=False) * 100
     egreedy_results.append(res)
     
 softmax_epsilons = [0.05, 0.1, 0.2, 0.25, 0.3, 0.35, 0.4, 0.5]
 softmax_results = []
 for e in log_progress(softmax_epsilons, every=1):
     player = Player(20, 1000, Softmax, eps=e)
-    res = player.evaluate(games=games_num, show=False, progressbar=False)
+    res = player.evaluate(games=games_num, show=False, progressbar=False) * 100
     softmax_results.append(res)
     
 ucb_epsilons = [0, 0.01, 0.015, 0.02, 0.05, 0.1, 0.2, 0.25, 0.3, 0.4, 0.5]
 ucb_results = []
 for e in log_progress(ucb_epsilons, every=1):
     player = Player(20, 1000, UCB, eps=e)
-    res = player.evaluate(games=games_num, show=False, progressbar=False)
+    res = player.evaluate(games=games_num, show=False, progressbar=False) * 100
     ucb_results.append(res)
 
 plt.figure(figsize=(8, 5))
@@ -340,7 +356,7 @@ plt.plot(softmax_epsilons, softmax_results, 'b', label='softmax', linewidth=1.5)
 plt.plot(egreedy_epsilons, egreedy_results, 'g', label='epsilon-greedy', linewidth=1.5)
 plt.plot([0, max(softmax_epsilons[-1], egreedy_epsilons[-1])], [greedy_sum, greedy_sum],
          'r', label='greedy', linewidth=1.5)
-plt.plot([0, max(softmax_epsilons[-1], egreedy_epsilons[-1])], [100, 100],
+plt.plot([0, max(softmax_epsilons[-1], egreedy_epsilons[-1])], [100.0, 100.0],
          'k', label='optimal', linewidth=1.5)
 plt.hold(False)
 plt.legend(loc='lower center', fontsize=14, ncol=2)
@@ -351,7 +367,7 @@ plt.show()
 
 # ### Градиентный метод
 
-# In[11]:
+# In[15]:
 
 class Gradient(MAB_Strategy):
     def __init__(self, model, lambd):
@@ -377,13 +393,13 @@ class Gradient(MAB_Strategy):
         return reward
 
 
-# In[12]:
+# In[16]:
 
 grad_epsilons = [0, 0.01, 0.015, 0.02, 0.05, 0.1, 0.2, 0.25, 0.3, 0.4, 0.5]
 grad_results = []
 for e in log_progress(grad_epsilons, every=1):
     player = Player(20, 1000, Gradient, lambd=e)
-    res = player.evaluate(games=1000, show=False, progressbar=False)
+    res = player.evaluate(games=1000, show=False, progressbar=False) * 100
     grad_results.append(res)
 
 plt.figure(figsize=(8, 5))
@@ -397,12 +413,12 @@ plt.plot([0, grad_epsilons[-1]], [100, 100],
 plt.hold(False)
 plt.legend(loc='lower center', fontsize=14, ncol=2)
 plt.show()
-print("Max result:", str(max(grad_results)) + "%")
+print("Max result:", str(max(grad_results)*100) + "%")
 
 
 # Отсюда выберем параметр $\lambda = 0.2$. Сравним теперь этот метод с предыдущими в динамике:
 
-# In[13]:
+# In[21]:
 
 games_num = 1000
 
@@ -411,16 +427,17 @@ plt.xlabel('steps')
 plt.ylabel("total reward at n'th step")
 plt.hold(True)
 greedy_player = Player(20, 1000, Greedy)
-greedy_player.evaluate(games=games_num, show=True, hold=True, color='r', label='greedy', show_opt=True)
+greedy_player.evaluate(games=games_num, show=True, hold=True, color='r', show_opt=True)
 e_greedy_player = Player(20, 1000, E_Greedy, eps=0.1)
-e_greedy_player.evaluate(games=games_num, show=True, hold=True, color='g', label='e-greedy', show_opt=False)
+e_greedy_player.evaluate(games=games_num, show=True, hold=True, color='g', show_opt=False)
 softmax_player = Player(20, 1000, Softmax, eps=0.25)
-softmax_player.evaluate(games=games_num, show=True, hold=True, color='b', label='softmax', show_opt=False)
+softmax_player.evaluate(games=games_num, show=True, hold=True, color='b', show_opt=False)
 ucb_player = Player(20, 1000, UCB, eps=0.25)
-ucb_player.evaluate(games=games_num, show=True, hold=True, color='m', label='UCB', show_opt=False)
+ucb_player.evaluate(games=games_num, show=True, hold=True, color='m', show_opt=False)
 grad_player = Player(20, 1000, Gradient, lambd=0.2)
-grad_player.evaluate(games=games_num, show=True, hold=True, color='y', label='gradient', show_opt=False)
+grad_player.evaluate(games=games_num, show=True, hold=True, color='y', show_opt=False)
 plt.hold(False)
+plt.grid(True)
 plt.legend(loc='upper left', ncol=2, fontsize=14)
 plt.show()
 
