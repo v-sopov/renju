@@ -5,14 +5,15 @@
 
 # ### Задание
 # #### 1. Приведите жизненный пример марковского процесса принятия решения (это может быть какаю-нибудь игра и т.п.).
-# Очень простой пример - шахматы. Конечное, пусть и очень большое, количество состояний $S$, конечное множество действий $ A \subset S \times S$. Среда - наш противник - отвечает вполне себе случайно. Если рассматривать среду именно как противника, то она, конечно, отдаёт сильное предпочтение тем действиям, которые она считает выигрышными. Награда для каждого допустимого действия из $\; S \times A \;$ нулевая за исключением последнего хода, по результатам которого присуждается награда $\pm 1$. Кроме того, очевидно, что для принятия решения информация о предыдущих состояниях нерелевантна. Таким образом, принятие решения в шахматах можно смоделировать с помощью марковского процесса.
+# Очень простой пример - шашки. Конечное, пусть и очень большое, количество состояний $S$, конечное множество действий $ A \subset S \times S$. Среда - наш противник - отвечает вполне себе случайно. Если рассматривать среду именно как противника, то она, конечно, отдаёт сильное предпочтение тем действиям, которые она считает выигрышными. Награда для каждого допустимого действия из $\; S \times A \;$ нулевая за исключением последнего хода, по результатам которого присуждается награда $\pm 1$. Кроме того, очевидно, что для принятия решения информация о предыдущих состояниях нерелевантна. Таким образом, принятие решения в шашках можно смоделировать с помощью марковского процесса.
 # #### 2. Можете ли вы привести пример игры, где принятие решения нельзя смоделировать с помощью марковского процесса?
-# Крестики-нолики на бесконечной доске не могут быть смоделированы хотя бы из-за бесконечности (в частности, континуальности) множества состояний $S$.
+# Шахматы, однако, не являются марковским процессом. Например, там есть такое понятие, как рокировка: перестановка короля и ладьи, если они не двигались в течение игры. Однако чтобы это проверить это условие, требуется хранить историю игры, что противоречит определению марковского процесса.
 # #### 3. Выведите следующие значения через $p(s_{t+1}, r_{t+1}|s_t, a_t)$, для простоты все распределения можно считать дискретными
 #   * $r(s_{t}, a_{t}) = \mathbb{E}[R_{t+1}|S_t = s_t, A_t = a_t]$ - средняя награда за действие $a_t$ в $s_t$ 
 #   * $p(s_{t+1} | s_t, a_t) = \Pr\{S_{t+1} = s_{t+1} | S_t = s_t, A_t = a_t \}$ - вероятность попасть в $s_{t+1}$ из $s_t$, сделав $a_t$.
 #   * $r(s_t, a_t, s_{t+1}) = \mathbb{E}[R_{t+1}|S_{t+1} = s_{t+1}, S_t = s_t, A_t = a_t]$ - средняя награда при переезде из $s_t$ в $s_{t+1}$, сделав $a_t$.
-# 
+#   
+# Раскрываем просто по определению матожидания и по базовым свойствам вероятности:
 # $r(s_{t}, a_{t}) = \mathbb{E}[R_{t+1}|S_t = s_t, A_t = a_t] = \sum_{s,r} r \cdot p(s, r \;|\; s_t, a_t)$
 # 
 # $p(s_{t+1} | s_t, a_t) = \Pr\{S_{t+1} = s_{t+1} | S_t = s_t, A_t = a_t \} = \sum_{r} p(s_{t+1}, r \;|\; s_t, a_t)$
@@ -23,7 +24,7 @@
 
 # ### Смоделируем среду:
 
-# In[2]:
+# In[1]:
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -88,7 +89,7 @@ def log_progress(sequence, every=None, size=None):
 # 
 # Игра бесконечна.
 
-# In[131]:
+# In[2]:
 
 class Environment:
     def __init__(self, states, actions=2):
@@ -118,7 +119,7 @@ class Environment:
         return (new_state, self.rewards[new_state])
 
 
-# In[132]:
+# In[3]:
 
 class PolicyIterationStrategy:
     def __init__(self, env, discount):
@@ -170,7 +171,9 @@ class PolicyIterationStrategy:
                 
     def choose(self, state):
         return np.random.choice(self.env.actions, p=self.policy[state])
-    
+
+
+# In[4]:
 
 class ValueIterationStrategy:
     def __init__(self, env, discount):
@@ -186,12 +189,14 @@ class ValueIterationStrategy:
             epsilon = 0
             for state in range(self.env.states):
                 old_value = self.state_values[state]
-                max_val = -1e20
                 for action in range(self.env.actions):
                     action_sum = 0
                     for new_state in range(self.env.states):
                         action_sum += self.env.transition_probas[state, action, new_state] *                             (self.env.rewards[new_state] +                                 self.discount*self.state_values[new_state])
-                    max_val = max(max_val, action_sum)
+                    if action == 0:
+                        max_val = action_sum
+                    else:
+                        max_val = max(max_val, action_sum)
                 self.state_values[state] = max_val
                 epsilon = max(epsilon, abs(old_value - self.state_values[state]))
             i += 1
@@ -228,7 +233,7 @@ class RandomStrategy:
         return np.random.choice(self.env.actions, p=self.policy[state])
 
 
-# In[133]:
+# In[5]:
 
 class MarkovPlayer:
     def __init__(self, states, actions, steps, strategy_class, discount):
@@ -244,21 +249,21 @@ class MarkovPlayer:
             games_range = log_progress(range(games), every=1)
         else:
             games_range = range(games)
-        avg_time = 0
+        avg_iterations = 0
         for game in games_range:
             state = 0
             self.state = state
             env = Environment(self.states, self.actions)
             strategy = self.strategy_class(env, self.discount)
             self.strategy = strategy
-            avg_time += strategy.learn()
+            avg_iterations += strategy.learn()
             for i in range(self.steps):
                 state, r = env.step(state, strategy.choose(state))
                 rewards[i] += r
                 self.state = state
-        avg_time /= games
+        avg_iterations /= games
         discount = self.discount
-        print(avg_time, 'steps to converge')
+        print(avg_iterations, 'steps to converge')
         for i in range(1, self.steps):
             rewards[i] = rewards[i-1] + discount * rewards[i]
             discount *= self.discount
@@ -278,36 +283,16 @@ class MarkovPlayer:
 
 # ## ATTENTION: Не запускать следующий код с исходным games_num. Долго работает. Для проверки работы достаточно games_num ~ 50 или даже меньше
 
-# In[134]:
+# In[6]:
 
-# == IMPORTANT PARAMETER ==
-games_num = 3000
-# =========================
-steps = 120
-discount = 0.95
-states = 50
-actions = 2
-random_player = MarkovPlayer(states=states, actions=actions, steps=steps,
-                           strategy_class=RandomStrategy, discount=discount)
-policy_iteration_player = MarkovPlayer(states=states, actions=actions, steps=steps,
-                           strategy_class=PolicyIterationStrategy, discount=discount)
-value_iteration_player = MarkovPlayer(states=states, actions=actions, steps=steps,
-                           strategy_class=ValueIterationStrategy, discount=discount)
-plt.hold(True)
-random_player.evaluate(games=games_num, hold=True, color='k')
-print('===')
-policy_iteration_player.evaluate(games=games_num, hold=True, color='r')
-print('===')
-value_iteration_player.evaluate(games=games_num, hold=True, color='b')
-plt.hold(False)
-plt.show()
+get_ipython().run_cell_magic('time', '', "# == IMPORTANT PARAMETER ==\ngames_num = 500\n# =========================\nsteps = 120\ndiscount = 0.95\nstates = 50\nactions = 2\nrandom_player = MarkovPlayer(states=states, actions=actions, steps=steps,\n                           strategy_class=RandomStrategy, discount=discount)\npolicy_iteration_player = MarkovPlayer(states=states, actions=actions, steps=steps,\n                           strategy_class=PolicyIterationStrategy, discount=discount)\nvalue_iteration_player = MarkovPlayer(states=states, actions=actions, steps=steps,\n                           strategy_class=ValueIterationStrategy, discount=discount)\nplt.hold(True)\nrandom_player.evaluate(games=games_num, hold=True, color='k', label='random')\nprint('===')\npolicy_iteration_player.evaluate(games=games_num, hold=True, color='r', label='Policy')\nprint('===')\nvalue_iteration_player.evaluate(games=games_num, hold=True, color='b', label='Value')\nplt.xlabel('steps')\nplt.ylabel('reward')\nplt.grid(True)\nplt.legend(loc='right', fontsize=14)\nplt.hold(False)\nplt.show()")
 
 
 # Как можно заметить, оба алгоритма показывают схожие результаты (что логично, так как они должны находить одну оптимальную стратегию), однако **value iteration strategy** сходится всё же гораздо быстрее.
 # 
 # ### Теперь посмотрим, как зависит значение $V_\gamma^*(s)$ для пяти произвольных состояний:
 
-# In[153]:
+# In[7]:
 
 states = 50
 actions = 2
