@@ -89,6 +89,17 @@ def game_result(state):
         return 0
     return 2 # not finished
 
+def print_state(state):
+    for row in state:
+        for elem in row:
+            if elem == 1:
+                print('X', end='')
+            elif elem == -1:
+                print('O', end='')
+            else:
+                print('.', end='')
+        print()
+
 def generate_states():
     global generate_states_return_value
     if 'generate_states_return_value' in globals():
@@ -179,35 +190,9 @@ class SARSA:
         return abs(diff)
 
 
-class QLearning:
-    def __init__(self, states, actions, side, alpha, trainable=True):
-        self.trainable = trainable
-        self.states = states
-        self.actions = actions
-        self.eps = 0
-        if side == 'x':
-            self.side = 1
-        else:
-            self.side = -1
-        self.alpha = alpha
-        self.action_values = {}
-        for key in actions.keys():
-            self.action_values[key] = np.zeros(len(actions[key]))
-        self.step = 1
+# In[4]:
 
-    def proba(self, state):
-        proba = np.zeros_like(self.action_values[state])
-        best_args = self.action_values[state] == self.action_values[state].max()
-        proba[best_args] = (1 - self.eps) / np.argwhere(best_args).shape[0]
-        proba += self.eps / proba.shape[0]
-        return proba
-
-
-    def choose(self, state):
-        self.old_state = state
-        self.last_action =  np.random.choice(len(self.actions[state]), p=self.proba(state))
-        return self.actions[state][self.last_action]
-
+class QLearning(SARSA):
     def reward(self, new_state, reward):
         if self.trainable == False:
             return 0.0
@@ -224,7 +209,7 @@ class QLearning:
 
 # ### Определим заодно класс, который позволит играть с ними человеку
 
-# In[4]:
+# In[5]:
 
 class Human:
     def __init__(self, side):
@@ -253,7 +238,7 @@ class Human:
 
 # ### Наконец, определим класс, которай будет управлять самой игрой и обучением
 
-# In[5]:
+# In[6]:
 
 class TicTacToe:
     def __init__(self, player_x_class, player_o_class, alpha):
@@ -335,10 +320,11 @@ class TicTacToe:
             turn = 0
             state = 0
             while game_result(self.states[state]) == 2:
-                print(self.states[state])
+                print_state(self.states[state])
+                print('-----')
                 state = players[turn % 2].choose(state)
                 turn += 1
-            print(self.states[state])
+            print_state(self.states[state])
             if game_result(self.states[state]) == 1:
                 print("Winner: X")
             elif game_result(self.states[state]) == -1:
@@ -357,7 +343,7 @@ class TicTacToe:
 
 # ### Теперь посмотрим на алгоритмы в деле
 
-# In[6]:
+# In[7]:
 
 sarsa_game = TicTacToe(SARSA, SARSA, 0.2)
 sarsa_game.train(20000, epsilon=0.2, with_epsilon=0.9, counter=100)
@@ -367,7 +353,7 @@ print(result[2]/result[3] * 100, '% are draws', sep='')
 
 # #### Попробуем выиграть, играя за X:
 
-# In[7]:
+# In[8]:
 
 # Интерактивный режим
 sarsa_game.play(1, computer='o')
@@ -375,7 +361,7 @@ sarsa_game.play(1, computer='o')
 
 # #### Теперь будем намеренно поддаваться, играя за O (очевидно и не очень):
 
-# In[8]:
+# In[9]:
 
 sarsa_game.play(2, computer='x')
 
@@ -383,7 +369,7 @@ sarsa_game.play(2, computer='x')
 # Как мы видим, **SARSA** играет против живого игрока очень уверенно. Даже более того: алгоритм никогда не проигрывает, поэтому с самим собой он всегда играет в ничью.
 # Посмотрим теперь, как ему противостоит Q-learning:
 
-# In[9]:
+# In[10]:
 
 q_game = TicTacToe(QLearning, QLearning, 0.2)
 q_game.train(20000, epsilon=0.2, with_epsilon=0.9, counter=100)
@@ -391,7 +377,7 @@ result = q_game.train(1000, epsilon=0)
 print(result[2]/result[3] * 100, '% are draws', sep='')
 
 
-# In[10]:
+# In[11]:
 
 game = TicTacToe(SARSA, QLearning, 0.2)
 game.player_x = sarsa_game.player_x
@@ -407,7 +393,7 @@ print(res[0]/res[3]*100, '% x wins, ', res[1]/res[3]*100, '% o wins, ', res[2]/r
 # ## Сравним скорость сходимости алгоритмов
 # ### 1. Оценка $\Delta Q(s, a)$
 
-# In[11]:
+# In[12]:
 
 game = TicTacToe(SARSA, SARSA, 0.2)
 game.train(20000, epsilon=0.2, with_epsilon=1, counter=100, graph=True)
@@ -424,8 +410,9 @@ res = game.train(1000, epsilon=0, with_epsilon=1, counter=100, graph=True)
 # ### 2. Сходимость к $P_{draw} = 1$
 # В качестве альтернативной метрики предложим количество итераций алгоритма, после которых крестики и нолики начнут всегда играть вничью. В рамках обучения в целом мы предполагаем, что игра с самим собой улучшет способности алгоритма, и в результате алгоритм играет вничью, так как как крестики, так и нолики научились не проигрывать
 
-# In[12]:
+# In[13]:
 
+# ATTENTION: долгое исполнение. Для ускорения можно снизить количество итераций
 steps_nums = list(range(1000, 10001, 500))
 iterations = 20
 draws = [[], []]
@@ -451,9 +438,4 @@ plt.plot(steps_nums, draws[0], 'r', steps_nums, draws[1], 'b')
 plt.show()
 
 
-# По графику, на котором красным показаны успехи **SARSA**, а синим - **QLearning**, можно заметить, что в данных терминах сходимости **Q-learning** всё-таки сходится подольше
-
-# In[ ]:
-
-
-
+# По графику можно заметить, что в данных терминах сходимости **Q-learning** всё-таки сходится подольше
