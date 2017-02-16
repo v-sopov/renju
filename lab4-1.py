@@ -20,6 +20,7 @@ import matplotlib.pyplot as plt
 import math
 from scipy.ndimage.filters import gaussian_filter1d
 
+
 # Код для отображения прогресс-бара, спасибо https://github.com/alexanderkuk
 def log_progress(sequence, every=None, size=None):
     from ipywidgets import IntProgress, HTML, VBox
@@ -315,7 +316,6 @@ class UCB(MAB_Strategy):
 
 # In[14]:
 
-
 # ATTENTION: takes a significant amount of time to be processed
 games_num = 1000
 
@@ -344,6 +344,9 @@ for e in log_progress(ucb_epsilons, every=1):
     res = player.evaluate(games=games_num, show=False, progressbar=False) * 100
     ucb_results.append(res)
 
+
+# In[15]:
+
 plt.figure(figsize=(8, 5))
 plt.title('score', fontsize=16)
 plt.axis([0, max(egreedy_epsilons[-1], softmax_epsilons[-1], ucb_epsilons[-1]),
@@ -367,7 +370,7 @@ plt.show()
 
 # ### Градиентный метод
 
-# In[15]:
+# In[16]:
 
 class Gradient(MAB_Strategy):
     def __init__(self, model, lambd):
@@ -393,7 +396,7 @@ class Gradient(MAB_Strategy):
         return reward
 
 
-# In[16]:
+# In[17]:
 
 grad_epsilons = [0, 0.01, 0.015, 0.02, 0.05, 0.1, 0.2, 0.25, 0.3, 0.4, 0.5]
 grad_results = []
@@ -401,6 +404,9 @@ for e in log_progress(grad_epsilons, every=1):
     player = Player(20, 1000, Gradient, lambd=e)
     res = player.evaluate(games=1000, show=False, progressbar=False) * 100
     grad_results.append(res)
+
+
+# In[18]:
 
 plt.figure(figsize=(8, 5))
 plt.title('score', fontsize=16)
@@ -418,13 +424,11 @@ print("Max result:", str(max(grad_results)*100) + "%")
 
 # Отсюда выберем параметр $\lambda = 0.2$. Сравним теперь этот метод с предыдущими в динамике:
 
-# In[21]:
+# In[19]:
 
 games_num = 1000
 
 plt.figure(figsize=(8, 8))
-plt.xlabel('steps')
-plt.ylabel("total reward at n'th step")
 plt.hold(True)
 greedy_player = Player(20, 1000, Greedy)
 greedy_player.evaluate(games=games_num, show=True, hold=True, color='r', show_opt=True)
@@ -436,6 +440,12 @@ ucb_player = Player(20, 1000, UCB, eps=0.25)
 ucb_player.evaluate(games=games_num, show=True, hold=True, color='m', show_opt=False)
 grad_player = Player(20, 1000, Gradient, lambd=0.2)
 grad_player.evaluate(games=games_num, show=True, hold=True, color='y', show_opt=False)
+
+
+# In[20]:
+
+plt.xlabel('steps')
+plt.ylabel("total reward at n'th step")
 plt.hold(False)
 plt.grid(True)
 plt.legend(loc='upper left', ncol=2, fontsize=14)
