@@ -4,7 +4,8 @@ import numpy
 
 mcts_utils_module = Extension('mcts_utils',
                     define_macros = [('PYTHON_C_EXTENTION', None)],
-                    sources = ['mcts_utils.cpp'])
+                    sources = ['mcts_utils.cpp'],
+                    extra_compile_args = ['-std=c++11'])
 
 setup (name = 'mcts_utils',
        version = '1.0',
