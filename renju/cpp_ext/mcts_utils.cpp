@@ -32,7 +32,7 @@ char get_neighbours(PyArrayObject *board, int row, int col, int drow, int dcol, 
     for (int iter = 0; iter < 2; ++iter) {
         i = 1;
         while (true) {
-            if (row+i*drow >= 15 || col+i*dcol >= 15) {
+            if (row+i*drow < 0 || row+i*drow >= 15 || col+i*dcol >= 15 || col+i*dcol < 0) {
                 break;
             }
             float res = get_elem(board, row+i*drow, col+i*dcol);
