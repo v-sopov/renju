@@ -1,0 +1,8 @@
+numpy==1.12.1
+matplotlib==2.0.0
+tqdm==4.11.2
+jupyter==1.0.0
+tensorflow==1.1.0
+Keras==2.0.4
+keras-tqdm==2.0.1
+h5py==2.7.0
