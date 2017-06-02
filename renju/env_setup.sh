@@ -1,6 +1,6 @@
 #!/bin/bash
 
-pip install -r requirements.txt
+pip install -r autonomous_reqs.txt
 cd cpp_ext
 python setup.py install
 cd ../

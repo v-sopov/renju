@@ -1,6 +1,6 @@
 #!/bin/bash
 
-sudo pip3 install -r requirements.txt
+sudo pip3 install -r autonomous_reqs.txt
 cd cpp_ext
 sudo python3 setup.py install
 cd ../
