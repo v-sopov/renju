@@ -1,11 +1,13 @@
 import logging
 import random
+import sys
+import os
+sys.path.append(os.getcwd())
 
 import backend
 import renju
 import util
 
-import os
 from generate import *
 from tree_search import *
 
@@ -21,7 +23,7 @@ def main():
     # logging.debug("Start search_agent backend...")
     # logging.debug('Current working dir: ' + os.getcwd())
     model_path = os.path.dirname(os.path.realpath(__file__)) + '/large_policy_model'
-    logging.debug('Model path: ' + model_path)
+    # logging.debug('Model path: ' + model_path)
     sl_model = load_model(model_path)
     TIME = 10
     search = MonteCarloTreeSearch(sl_model, None, TIME, 0)
