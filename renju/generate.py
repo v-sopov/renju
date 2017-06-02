@@ -10,7 +10,6 @@ from keras.layers import Convolution2D, MaxPooling2D
 from keras.optimizers import Adadelta, Adam, SGD
 from keras.utils import np_utils
 from keras import backend as K
-from keras_tqdm import TQDMNotebookCallback
 from keras.callbacks import TensorBoard
 import sys
 import random
@@ -122,7 +121,7 @@ def generate_games(filename):
     with open(filename, 'r') as file:
         for line in file:
             yield Game(line)
-            
+
 def generate_value_games(filename):
     with open(filename, 'r') as file:
         for line in file:
@@ -263,7 +262,7 @@ def generate_reinforced_samples(sl_policy, rl_policy, max_turns):
                 (prepare_board(board_in_interest, player_black=True), -res))
 
 
-    
+
 def show_board(board, show=True, size=7):
     ticks = np.array((range(0, 15)))
     ylabels = ticks+1
@@ -343,8 +342,8 @@ def generate_reinforced_batch(sl_policy, rl_policy, batch_size):
             index %= batch_size
             if index == 0:
                 yield (batch_samples, batch_labels)
-                
-                
+
+
 def measure_dataset(filename, mark_player=False, last_n=None, nb_games=None):
     if mark_player:
         games_generator = generate_value_games(filename)

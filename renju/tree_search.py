@@ -179,7 +179,7 @@ class MonteCarloTreeSearch:
 
     def make_move(self):
         start_time = time.clock_gettime(time.CLOCK_REALTIME)
-        end_time = start_time + self.time - 0.1
+        end_time = start_time + self.time - 0.2
         checked_action = mcts_utils.find_fours(self.root.board, not self.root.is_black_to_go)
         if checked_action is not None:
             self.pass_move(checked_action)
